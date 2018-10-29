@@ -6,28 +6,6 @@ import json
 from threading import Thread
 from os.path import expanduser
 
-class HassEntity:
-  def __init__(self, state, attributes):
-    self.state = state
-    self.attributes = attributes
-    self.callbacks = []
-
-  def state(self):
-    return self.state
-
-  def attributes(self):
-    return self.attributes
-
-  def update(self, state, attributes = None):
-    self.state = state;
-    if attributes != None:
-      self.attributes = attributes
-    for cb in self.callbacks:
-      cb(self.state, self.attributes)
-
-  def add_callback(self, callback):
-    self.callbacks += [callback]
-
 class Hass:
   def __init__(self, host, token):
     self.host = host
@@ -150,6 +128,27 @@ class Hass:
       target = self.run_threaded_event_loop
     ).start()
 
+class HassEntity:
+  def __init__(self, state, attributes):
+    self.state = state
+    self.attributes = attributes
+    self.callbacks = []
+
+  def state(self):
+    return self.state
+
+  def attributes(self):
+    return self.attributes
+
+  def update(self, state, attributes = None):
+    self.state = state;
+    if attributes != None:
+      self.attributes = attributes
+    for cb in self.callbacks:
+      cb(self.state, self.attributes)
+
+  def add_callback(self, callback):
+    self.callbacks += [callback]
 
 if __name__ == "__main__":
   with open(expanduser("~/.hass_api")) as config_file:
