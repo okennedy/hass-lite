@@ -14,14 +14,18 @@ class Hass:
     self.msg_id = 1
     self.handlers = {}
     self.state = {}
+    self.global_callbacks = []
 
   def __getitem__(self, entity):
     return self.state[entity]
-
-  def add_callback(self, entity, callback):
-    if entity not in self.state:
-      self.state[entity] = HassEntity(None, None)
-    self.state[entity].add_callback(callback)
+  
+  def add_callback(self, callback, entity = None):
+    if entity == None:
+      self.global_callbacks += [callback]
+    else:
+      if entity not in self.state:
+        self.state[entity] = HassEntity(None, None)
+      self.state[entity].add_callback(callback)
 
   @asyncio.coroutine
   def send_json(self, msg):
@@ -54,6 +58,8 @@ class Hass:
       self.state[entity] = HassEntity(state, attributes)
     elif not skip_insert_if_exists or self.state[entity].state == None: 
       self.state[entity].update(state, attributes)
+    for cb in self.global_callbacks:
+      cb(entity, self.state[entity])
 
   def delete_state(self, entity):
     if entity in self.state:
@@ -121,12 +127,21 @@ class Hass:
     loop.close()
 
   def run_threaded_event_loop(self):
-    self.run_event_loop(asyncio.new_event_loop())
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    self.run_event_loop(loop)
 
   def start_thread(self):
-    return Thread(
-      target = self.run_threaded_event_loop
-    ).start()
+    try:
+      thread = Thread(
+        target = self.run_threaded_event_loop
+      )
+      thread.daemon = True
+      thread.start()
+    except Exception as e:
+      import traceback
+      print(traceback.format_exc())
+      exit(-1)
 
 class HassEntity:
   def __init__(self, state, attributes):
@@ -155,10 +170,12 @@ if __name__ == "__main__":
     config = json.load(config_file)
     state = Hass(config["host"], config["api_key"])
     add_callback = lambda entity, fmt: (
-      state.add_callback(entity, 
-        lambda state, attributes: print(fmt.format(state = state, attributes = attributes)))
-    ) 
-    for cb in config["callbacks"]:
-      add_callback(cb["entity_id"], cb["format_string"])
+      state.add_callback(
+        lambda state, attributes: print(fmt.format(state = state, attributes = attributes)),
+        entity = entity
+      ))
+    if "callbacks" in config:
+      for cb in config["callbacks"]:
+        add_callback(cb["entity_id"], cb["format_string"])
     # state.run_event_loop()
     state.start_thread()
